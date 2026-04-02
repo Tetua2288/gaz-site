@@ -14,6 +14,20 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS as DndCSS } from "@dnd-kit/utilities";
 // ═══════════════════════════════════════════════════════════════
 // SUPABASE
 // ═══════════════════════════════════════════════════════════════
@@ -111,7 +125,7 @@ const generateWeeks = () => {
 
   // Остальные недели — полные
   let weekNum = 2;
-  while (weeks.length < 12) {
+  while (currentDate.getFullYear() === 2026) {
     const weekDays = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(currentDate);
@@ -1141,9 +1155,121 @@ function TablesView({ days, fields }) {
 // ═══════════════════════════════════════════════════════════════
 // FIELDS VIEW
 // ═══════════════════════════════════════════════════════════════
+function SortableField({ f, i, fields, onFieldsChange, typeColor, typeName }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: f.id });
+
+  const style = {
+    transform: DndCSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        ...style,
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: "12px 16px",
+        background: "var(--bg2)",
+        border: "1px solid var(--bd)",
+        borderRadius: 11,
+      }}
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        style={{
+          cursor: "grab",
+          color: "var(--t3)",
+          fontSize: 16,
+          padding: "0 4px",
+          userSelect: "none",
+        }}
+        title="Перетащить"
+      >
+        ⠿
+      </div>
+      <div
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: 6,
+          background: (typeColor[f.type] || "var(--t3)") + "20",
+          border: `1px solid ${(typeColor[f.type] || "var(--t3)") + "44"}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 10,
+          color: typeColor[f.type] || "var(--t3)",
+          fontWeight: 700,
+          flexShrink: 0,
+        }}
+      >
+        {i + 1}
+      </div>
+      <div style={{ flex: 1 }}>
+        <span style={{ fontSize: 14, fontWeight: 500, color: "var(--t1)" }}>{f.label}</span>
+        {f.system && (
+          <span
+            style={{
+              marginLeft: 8,
+              fontSize: 10,
+              color: "var(--t3)",
+              background: "var(--bg3)",
+              padding: "1px 8px",
+              borderRadius: 10,
+            }}
+          >
+            системное
+          </span>
+        )}
+      </div>
+      <span
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: 0.5,
+          color: typeColor[f.type] || "var(--t3)",
+          background: (typeColor[f.type] || "var(--t3)") + "18",
+          border: `1px solid ${(typeColor[f.type] || "var(--t3)") + "44"}`,
+          padding: "2px 10px",
+          borderRadius: 20,
+        }}
+      >
+        {typeName[f.type] || f.type}
+      </span>
+      {f.system ? (
+        <div style={{ width: 28 }} />
+      ) : (
+        <button
+          onClick={() => onFieldsChange(fields.filter((x) => x.id !== f.id))}
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: 7,
+            border: "1px solid var(--bd2)",
+            background: "transparent",
+            color: "var(--t3)",
+            fontSize: 13,
+          }}
+          title="Удалить"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
 function FieldsView({ fields, onFieldsChange }) {
   const [newLabel, setNewLabel] = useState("");
   const [newType, setNewType] = useState("number");
+
+  const sensors = useSensors(useSensor(PointerSensor));
 
   const addField = () => {
     if (!newLabel.trim()) return;
@@ -1152,6 +1278,15 @@ function FieldsView({ fields, onFieldsChange }) {
       { id: uid(), label: newLabel.trim(), type: newType, system: false },
     ]);
     setNewLabel("");
+  };
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      const oldIndex = fields.findIndex((f) => f.id === active.id);
+      const newIndex = fields.findIndex((f) => f.id === over.id);
+      onFieldsChange(arrayMove(fields, oldIndex, newIndex));
+    }
   };
 
   const typeColor = { number: "var(--blue)", text: "var(--purple)", bool: "var(--green)" };
@@ -1216,91 +1351,23 @@ function FieldsView({ fields, onFieldsChange }) {
       </div>
 
       <SectionLabel>Все поля ({fields.length})</SectionLabel>
-      <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-        {fields.map((f, i) => (
-          <div
-            key={f.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              padding: "12px 16px",
-              background: "var(--bg2)",
-              border: "1px solid var(--bd)",
-              borderRadius: 11,
-            }}
-          >
-            <div
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 6,
-                background: (typeColor[f.type] || "var(--t3)") + "20",
-                border: `1px solid ${(typeColor[f.type] || "var(--t3)") + "44"}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 10,
-                color: typeColor[f.type] || "var(--t3)",
-                fontWeight: 700,
-                flexShrink: 0,
-              }}
-            >
-              {i + 1}
-            </div>
-            <div style={{ flex: 1 }}>
-              <span style={{ fontSize: 14, fontWeight: 500, color: "var(--t1)" }}>{f.label}</span>
-              {f.system && (
-                <span
-                  style={{
-                    marginLeft: 8,
-                    fontSize: 10,
-                    color: "var(--t3)",
-                    background: "var(--bg3)",
-                    padding: "1px 8px",
-                    borderRadius: 10,
-                  }}
-                >
-                  системное
-                </span>
-              )}
-            </div>
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                letterSpacing: 0.5,
-                color: typeColor[f.type] || "var(--t3)",
-                background: (typeColor[f.type] || "var(--t3)") + "18",
-                border: `1px solid ${(typeColor[f.type] || "var(--t3)") + "44"}`,
-                padding: "2px 10px",
-                borderRadius: 20,
-              }}
-            >
-              {typeName[f.type] || f.type}
-            </span>
-            {f.system ? (
-              <div style={{ width: 28 }} />
-            ) : (
-              <button
-                onClick={() => onFieldsChange(fields.filter((x) => x.id !== f.id))}
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 7,
-                  border: "1px solid var(--bd2)",
-                  background: "transparent",
-                  color: "var(--t3)",
-                  fontSize: 13,
-                }}
-                title="Удалить"
-              >
-                ✕
-              </button>
-            )}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {fields.map((f, i) => (
+              <SortableField
+                key={f.id}
+                f={f}
+                i={i}
+                fields={fields}
+                onFieldsChange={onFieldsChange}
+                typeColor={typeColor}
+                typeName={typeName}
+              />
+            ))}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }
@@ -1320,6 +1387,11 @@ function WeekView({
   selectedDay,
   fields,
 }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const currentWeekRef = useRef(null);
+
+  const currentWeek = weeks.find((w) => w.days.some((d) => d.date === todayStr));
+
   const toggleWeek = (weekId) => {
     setExpandedWeeks((prev) => ({ ...prev, [weekId]: !prev[weekId] }));
   };
@@ -1329,10 +1401,20 @@ function WeekView({
     setView("form");
   };
 
+  const scrollToCurrent = () => {
+    if (currentWeek) {
+      setExpandedWeeks((prev) => ({ ...prev, [currentWeek.id]: true }));
+      setTimeout(() => {
+        currentWeekRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 50);
+    }
+  };
+
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "12px 10px" }}>
       {weeks.map((week) => {
         const isExpanded = expandedWeeks[week.id] ?? false;
+        const isCurrent = currentWeek?.id === week.id;
         const hasDataInWeek = week.days.some((day) =>
           Object.values(day.reports || {}).some(
             (rep) =>
@@ -1342,7 +1424,7 @@ function WeekView({
         );
 
         return (
-          <div key={week.id} style={{ marginBottom: 8 }}>
+          <div key={week.id} data-weekid={week.id} style={{ marginBottom: 8 }} ref={isCurrent ? currentWeekRef : null}>
             <div
               onClick={() => toggleWeek(week.id)}
               style={{
@@ -1352,15 +1434,15 @@ function WeekView({
                 padding: "10px 14px",
                 borderRadius: 10,
                 cursor: "pointer",
-                background: "rgba(255,255,255,0.025)",
-                border: "1px solid var(--bd)",
+                background: isCurrent ? "rgba(245,158,11,0.08)" : "rgba(255,255,255,0.025)",
+                border: `1px solid ${isCurrent ? "rgba(245,158,11,0.4)" : "var(--bd)"}`,
                 transition: "all .15s",
               }}
             >
               <span
                 style={{
                   fontSize: 9,
-                  color: isExpanded ? "var(--blue)" : "var(--t3)",
+                  color: isExpanded ? (isCurrent ? "var(--amber)" : "var(--blue)") : "var(--t3)",
                   transition: "transform .2s",
                   transform: isExpanded ? "rotate(90deg)" : "none",
                 }}
@@ -1368,7 +1450,8 @@ function WeekView({
                 ▶
               </span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: isExpanded ? "var(--blue)" : "var(--t1)" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: isCurrent ? "var(--amber)" : (isExpanded ? "var(--blue)" : "var(--t1)") }}>
+                  {isCurrent && <span style={{ fontSize: 9, marginRight: 5 }}>●</span>}
                   Неделя {week.weekNumber} — {week.startLabel}
                 </div>
                 <div style={{ fontSize: 10, color: "var(--t3)" }}>{week.days.length} дней</div>
@@ -1380,6 +1463,7 @@ function WeekView({
               <div style={{ paddingLeft: 18, paddingTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
                 {week.days.map((day) => {
                   const isSelected = day.id === selectedDayId;
+                  const isToday = day.date === todayStr;
                   const hasData = Object.values(day.reports || {}).some(
                     (rep) => rep.rating > 0 || Object.values(rep.values || {}).some((v) => !!v)
                   );
@@ -1392,8 +1476,8 @@ function WeekView({
                         padding: "8px 14px",
                         borderRadius: 8,
                         cursor: "pointer",
-                        background: isSelected ? "rgba(96,165,250,.12)" : "transparent",
-                        border: `1px solid ${isSelected ? "var(--blue)" : "transparent"}`,
+                        background: isSelected ? "rgba(96,165,250,.12)" : isToday ? "rgba(245,158,11,0.06)" : "transparent",
+                        border: `1px solid ${isSelected ? "var(--blue)" : isToday ? "rgba(245,158,11,0.3)" : "transparent"}`,
                         display: "flex",
                         alignItems: "center",
                         gap: 10,
@@ -1411,11 +1495,12 @@ function WeekView({
                         style={{
                           flex: 1,
                           fontSize: 12.5,
-                          color: isSelected ? "var(--blue)" : "var(--t2)",
+                          color: isSelected ? "var(--blue)" : isToday ? "var(--amber)" : "var(--t2)",
                           fontFamily: "'IBM Plex Mono',monospace",
                         }}
                       >
                         {day.label}
+                        {isToday && <span style={{ marginLeft: 6, fontSize: 10, color: "var(--amber)" }}>сегодня</span>}
                       </span>
                       {isSelected && <span style={{ color: "var(--blue)", fontSize: 11 }}>выбрано</span>}
                     </div>
@@ -1726,17 +1811,43 @@ export default function App() {
         >
           <div style={{ padding: "12px 10px 10px", borderBottom: "1px solid var(--bd)", flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <span
-                style={{
-                  fontSize: 9,
-                  fontWeight: 700,
-                  color: "var(--t3)",
-                  letterSpacing: 1,
-                  textTransform: "uppercase",
-                }}
-              >
-                Недели ({weeks.length})
-              </span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+  <span
+    style={{
+      fontSize: 9,
+      fontWeight: 700,
+      color: "var(--t3)",
+      letterSpacing: 1,
+      textTransform: "uppercase",
+    }}
+  >
+    Недели ({weeks.length})
+  </span>
+  <button
+    onClick={() => {
+      const todayStr = new Date().toLocaleDateString("sv-SE");
+      const cw = weeks.find((w) => w.days.some((d) => d.date === todayStr));
+      if (cw) {
+        setExpandedWeeks((prev) => ({ ...prev, [cw.id]: true }));
+        setTimeout(() => {
+          document.querySelector(`[data-weekid="${cw.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 50);
+      }
+    }}
+    style={{
+      fontSize: 10,
+      padding: "3px 8px",
+      borderRadius: 6,
+      border: "1px solid rgba(245,158,11,0.4)",
+      background: "rgba(245,158,11,0.08)",
+      color: "var(--amber)",
+      fontWeight: 600,
+      cursor: "pointer",
+    }}
+  >
+    сегодня
+  </button>
+</div>
             </div>
           </div>
 
