@@ -4,7 +4,7 @@ https://nodejs.org/en/download v 24.14.1 (LTS)
 
 В папке проекта выполни:
 
-npm install
+npm install ( установит все библиотеки )
 
 Как запустить проект
 
